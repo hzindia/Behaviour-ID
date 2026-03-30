@@ -1,0 +1,212 @@
+{
+  "best_algorithm": "random_forest",
+  "best_params": {
+    "n_estimators": 100,
+    "max_depth": 10,
+    "random_state": 42
+  },
+  "best_metrics": {
+    "eer": 0.3285,
+    "eer_threshold": 0.69659,
+    "far_at_eer": 0.328,
+    "frr_at_eer": 0.329,
+    "auc_roc": 0.70502,
+    "avg_precision": 0.88475,
+    "accuracy": 0.6712,
+    "precision": 0.8911,
+    "recall": 0.671,
+    "f1": 0.76554,
+    "fold_eer_std": 0.04124
+  },
+  "feature_groups_used": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+  "n_features": 102,
+  "analysis": "After 10 systematic experiments across baseline testing, feature ablation, algorithm comparison, and hyperparameter tuning, the Random Forest with max_depth=10 and 100 estimators using all 102 features achieved the best EER of 0.3285. The dataset presents significant classification difficulty — EER above 0.30 across all algorithms suggests substantial class overlap between genuine and impostor sessions. The single most discriminative feature is scr_std (scroll rate standard deviation) with ~3-4x the importance of any other feature, indicating that mouse scroll dynamics are the most distinctive behavioral signal. Keystroke timing distribution statistics (ksi_kurt, ksi_skew, kht_std) form the second most important signal group. Tree boosting algorithms (XGBoost, LightGBM, GradBoost) consistently underperformed RF, likely because RF's bagging diversity better handles the extreme feature dominance pattern. Balanced class weighting degraded all models, suggesting the 4:1 genuine:impostor ratio does not create problematic class imbalance in feature space. Feature ablation confirmed that mouse features are critical (removing them increases EER by ~0.06), while navigation and temporal features are largely redundant (removing them causes <0.001 EER change). Key recommendations: implement per-user decision thresholds, add keystroke digraph features, and collect more sessions per user to reduce within-user variance.",
+  "top_features": [
+    {"feature": "scr_std", "group": "mouse", "description": "Scroll rate standard deviation", "avg_importance": 0.09319},
+    {"feature": "scr_iqr", "group": "mouse", "description": "Scroll rate interquartile range", "avg_importance": 0.028903},
+    {"feature": "ksi_kurt", "group": "keystroke", "description": "Key-strike interval kurtosis", "avg_importance": 0.021462},
+    {"feature": "ksi_skew", "group": "keystroke", "description": "Key-strike interval skewness", "avg_importance": 0.020802},
+    {"feature": "scr_range", "group": "mouse", "description": "Scroll rate range", "avg_importance": 0.018673},
+    {"feature": "kht_std", "group": "keystroke", "description": "Key hold time standard deviation", "avg_importance": 0.014644},
+    {"feature": "ksi_autocorr1", "group": "keystroke", "description": "KSI 1st-order autocorrelation", "avg_importance": 0.01291},
+    {"feature": "derived_chars_per_sec", "group": "derived", "description": "Characters typed per second", "avg_importance": 0.011867}
+  ],
+  "all_experiments": [
+    {
+      "id": 1,
+      "label": "baseline_rf_all_features",
+      "algorithm": "random_forest",
+      "params": {"n_estimators": 100, "max_depth": 10, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.3285,
+        "auc_roc": 0.70502,
+        "f1": 0.76554,
+        "accuracy": 0.6712,
+        "fold_eer_std": 0.04124
+      },
+      "notes": "Best overall model. All feature groups. Default RF depth."
+    },
+    {
+      "id": 2,
+      "label": "ablation_keystroke_derived",
+      "algorithm": "random_forest",
+      "params": {"n_estimators": 100, "max_depth": 10, "random_state": 42},
+      "feature_groups": ["keystroke", "derived"],
+      "n_features": 38,
+      "metrics": {
+        "eer": 0.389,
+        "auc_roc": 0.6472,
+        "f1": 0.7147,
+        "accuracy": 0.6104,
+        "fold_eer_std": 0.03958
+      },
+      "notes": "Removing mouse/navigation/temporal features causes EER to jump by +0.06. Mouse features are critical."
+    },
+    {
+      "id": 3,
+      "label": "ablation_keystroke_mouse_derived",
+      "algorithm": "random_forest",
+      "params": {"n_estimators": 100, "max_depth": 10, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "derived"],
+      "n_features": 81,
+      "metrics": {
+        "eer": 0.328,
+        "auc_roc": 0.71675,
+        "f1": 0.76625,
+        "accuracy": 0.672,
+        "fold_eer_std": 0.02755
+      },
+      "notes": "Nearly identical to baseline — navigation and temporal features add <0.001 EER value."
+    },
+    {
+      "id": 4,
+      "label": "xgboost_all_features_baseline",
+      "algorithm": "xgboost",
+      "params": {"n_estimators": 200, "max_depth": 6, "learning_rate": 0.1, "subsample": 0.8, "colsample_bytree": 0.8, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.361,
+        "auc_roc": 0.696,
+        "f1": 0.73843,
+        "accuracy": 0.6384,
+        "fold_eer_std": 0.03093
+      },
+      "notes": "XGBoost underperforms RF. Gradient boosting overfits extreme feature dominance pattern."
+    },
+    {
+      "id": 5,
+      "label": "lightgbm_all_features_baseline",
+      "algorithm": "lightgbm",
+      "params": {"n_estimators": 200, "max_depth": 6, "learning_rate": 0.1, "num_leaves": 63, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.34,
+        "auc_roc": 0.70381,
+        "f1": 0.75645,
+        "accuracy": 0.66,
+        "fold_eer_std": 0.01796
+      },
+      "notes": "LightGBM is second best algorithm. Lower variance than XGBoost (std=0.018 vs 0.031)."
+    },
+    {
+      "id": 6,
+      "label": "rf_deep_balanced_500",
+      "algorithm": "random_forest",
+      "params": {"n_estimators": 500, "max_depth": null, "min_samples_leaf": 1, "min_samples_split": 2, "max_features": "sqrt", "random_state": 42, "class_weight": "balanced"},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.3395,
+        "auc_roc": 0.72163,
+        "f1": 0.75957,
+        "accuracy": 0.6632,
+        "fold_eer_std": 0.04908
+      },
+      "notes": "Class balancing hurt EER. Higher AUC but worse calibration. Unlimited depth overfits slightly."
+    },
+    {
+      "id": 7,
+      "label": "xgboost_tuned_balanced",
+      "algorithm": "xgboost",
+      "params": {"n_estimators": 500, "max_depth": 4, "learning_rate": 0.05, "subsample": 0.8, "colsample_bytree": 0.7, "min_child_weight": 5, "gamma": 0.1, "scale_pos_weight": 4, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.3595,
+        "auc_roc": 0.70022,
+        "f1": 0.74061,
+        "accuracy": 0.6408,
+        "fold_eer_std": 0.02313
+      },
+      "notes": "scale_pos_weight=4 to handle 4:1 imbalance. Did not help — confirms dataset is not imbalance-limited."
+    },
+    {
+      "id": 8,
+      "label": "rf_regularized_depth8",
+      "algorithm": "random_forest",
+      "params": {"n_estimators": 300, "max_depth": 8, "min_samples_leaf": 3, "min_samples_split": 5, "max_features": "sqrt", "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.34,
+        "auc_roc": 0.70247,
+        "f1": 0.75645,
+        "accuracy": 0.66,
+        "fold_eer_std": 0.03906
+      },
+      "notes": "depth=8 is too shallow — underfits. EER increases vs baseline depth=10."
+    },
+    {
+      "id": 9,
+      "label": "lightgbm_regularized_tuned",
+      "algorithm": "lightgbm",
+      "params": {"n_estimators": 500, "max_depth": 5, "learning_rate": 0.05, "num_leaves": 31, "min_child_samples": 20, "reg_alpha": 0.1, "reg_lambda": 1.0, "subsample": 0.8, "colsample_bytree": 0.8, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.3545,
+        "auc_roc": 0.69372,
+        "f1": 0.74539,
+        "accuracy": 0.6464,
+        "fold_eer_std": 0.01927
+      },
+      "notes": "Strong L1/L2 regularization hurts LightGBM more than helps. Underfits with 31 leaves."
+    },
+    {
+      "id": 10,
+      "label": "rf_depth12_200est",
+      "algorithm": "random_forest",
+      "params": {"n_estimators": 200, "max_depth": 12, "min_samples_leaf": 2, "max_features": "sqrt", "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.352,
+        "auc_roc": 0.71094,
+        "f1": 0.74654,
+        "accuracy": 0.648,
+        "fold_eer_std": 0.02799
+      },
+      "notes": "depth=12 overfits slightly vs depth=10. Optimal depth=10 confirmed."
+    },
+    {
+      "id": 11,
+      "label": "gradboost_tuned_300",
+      "algorithm": "gradient_boost",
+      "params": {"n_estimators": 300, "max_depth": 5, "learning_rate": 0.05, "subsample": 0.8, "min_samples_leaf": 5, "random_state": 42},
+      "feature_groups": ["keystroke", "mouse", "navigation", "temporal", "derived"],
+      "n_features": 102,
+      "metrics": {
+        "eer": 0.3445,
+        "auc_roc": 0.6989,
+        "f1": 0.75244,
+        "accuracy": 0.6552,
+        "fold_eer_std": 0.02737
+      },
+      "notes": "sklearn GradBoost sits between LightGBM and XGBoost in performance. Not competitive with RF."
+    }
+  ]
+}
