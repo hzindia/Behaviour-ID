@@ -105,7 +105,7 @@ class BehaviorResearchAgent:
             permission_mode = "acceptEdits",
             cwd             = str(Path(__file__).resolve().parents[2]),  # project root
             system_prompt   = self._system_prompt(),
-            max_turns       = 60,
+            max_turns       = 500,
         )
 
         async for message in query(prompt=prompt, options=options):
@@ -154,6 +154,15 @@ class BehaviorResearchAgent:
             • Stop when EER has converged (< 0.003 improvement over 3 trials) or you've
               run the allowed number of experiments.
 
+            CRITICAL execution rules
+            ------------------------
+            • NEVER run commands with & (background). Every experiment must run
+              synchronously: python run_experiment.py ... (no & at the end).
+            • NEVER use parallel/concurrent bash commands. Run ONE experiment at a time,
+              wait for it to finish, read the result, then decide the next step.
+            • Running background processes WILL crash the session. This is forbidden.
+            • Do not use pkill, kill, or any process management commands.
+
             Output protocol
             ---------------
             • Print a short summary after EVERY experiment (algorithm, EER, AUC).
@@ -185,7 +194,7 @@ class BehaviorResearchAgent:
             - Label column: `is_genuine` (1 = genuine user, 0 = impostor)
 
             ## Experiment runner
-            Use this command to run an experiment:
+            Use this command to run an experiment (always synchronous, never use &):
 
             ```bash
             python run_experiment.py \\
@@ -196,6 +205,9 @@ class BehaviorResearchAgent:
                 --cv-folds 5 \\
                 --label "short_label"
             ```
+
+            IMPORTANT: Run ONE experiment at a time. Wait for JSON output. Never use & or
+            background processes. Never run multiple experiments simultaneously.
 
             Available algorithms:
             - `random_forest`    — RF classifier (fast, good baseline)

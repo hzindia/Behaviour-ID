@@ -181,36 +181,52 @@ Two full runs were conducted across different difficulty settings. The agent aut
 
 ---
 
-### Run 2 — Hard Difficulty (10 iterations)
+### Run 2 — Hard Difficulty, 10 iterations (preliminary)
 
-`python main.py --difficulty hard --iterations 10` — users are behaviorally similar, impostor sessions harder to detect
+`python main.py --difficulty hard --iterations 10`
+
+Quick 10-experiment sweep. RF baseline (EER=0.3285) held its lead — not enough budget to find the `is_unbalance` breakthrough. See Run 3 for the full story.
+
+---
+
+### Run 3 — Hard Difficulty, 50 iterations (full search)
+
+`python main.py --difficulty hard --iterations 50` — 47 experiments completed, full hyperparameter search
 
 **1,250 sessions · 102 features · 5-fold cross-validation**
 
-| # | Algorithm | Feature Groups | EER ↓ | AUC-ROC | F1 |
+| # | Algorithm | Config | EER ↓ | AUC-ROC | F1 |
 |---|---|---|---|---|---|
-| 1 | Random Forest | All (102) | 0.3285 | 0.705 | 0.766 |
-| 2 | Random Forest | Keystroke + Derived (43) | 0.3890 | 0.651 | — |
-| 3 | Random Forest | Keystroke + Mouse + Derived (81) | 0.3280 | 0.678 | — |
-| 4 | XGBoost | All (102) | 0.3610 | 0.678 | — |
-| 5 | LightGBM | All (102) | 0.3400 | 0.695 | — |
-| 6 | RF balanced (500 trees) | All (102) | 0.3395 | — | — |
-| 7 | XGBoost tuned | All (102) | 0.3595 | — | — |
-| 8 | RF regularized | All (102) | 0.3400 | — | — |
-| 9 | LightGBM regularized | All (102) | 0.3545 | — | — |
-| 10 | Gradient Boost | All (102) | 0.3445 | — | — |
-| **1 ⭐** | **Random Forest (baseline)** | **All (102)** | **0.3285** | **0.705** | **0.766** |
+| 1 | Random Forest | All features, baseline | 0.3285 | 0.705 | 0.766 |
+| 2 | Random Forest | Keystroke only | 0.3880 | 0.657 | — |
+| 3 | Random Forest | Mouse only | 0.3610 | 0.675 | — |
+| 4 | Random Forest | Keystroke+Mouse+Derived | 0.3280 | 0.717 | — |
+| 5 | XGBoost | All features | 0.3610 | 0.696 | — |
+| 6 | LightGBM | All features | 0.3400 | 0.704 | — |
+| 7–17 | RF / XGB / LGB / GBM / SVM / IF | Various tuning | 0.327–0.511 | — | — |
+| 18–20 | RF | max_features / depth / balance tuning | 0.336–0.357 | — | — |
+| **21 🎯** | **LightGBM** | **`is_unbalance=True`, 50 leaves** | **0.3235** | **0.718** | — |
+| 22–36 | LightGBM | num_leaves sweep (15–63), lr, mcs, reg | 0.324–0.361 | — | — |
+| **37 ⭐** | **LightGBM** | **350 est, 50 leaves, `is_unbalance=True`** | **0.3230** | **0.719** | **0.771** |
+| 38–47 | LightGBM / XGBoost | Fine-tuning around best, XGB comparison | 0.323–0.362 | — | — |
 
-*All 10 experiments converged around EER ≈ 0.328–0.395 — the baseline RF held its lead.*
+*47 experiments · convergence confirmed at Exp 37 → plateau Δ < 0.001*
 
 **Best config:**
 ```json
 {
-  "algorithm": "random_forest",
-  "params": { "n_estimators": 100, "max_depth": 10, "random_state": 42 },
+  "algorithm": "lightgbm",
+  "params": {
+    "n_estimators": 350,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "num_leaves": 50,
+    "min_child_samples": 5,
+    "is_unbalance": true
+  },
   "feature_groups": ["all"],
   "n_features": 102,
-  "eer": 0.3285,  "auc_roc": 0.705,  "f1": 0.766
+  "eer": 0.3230,  "auc_roc": 0.719,  "f1": 0.771,  "avg_precision": 0.898
 }
 ```
 
@@ -218,12 +234,13 @@ Two full runs were conducted across different difficulty settings. The agent aut
 
 ### Cross-Run Comparison
 
-| Setting | Best Algorithm | EER | AUC-ROC | Key Insight |
-|---|---|---|---|---|
-| Medium (8 iter) | LightGBM | **0.3285** | 0.721 | Leaf-wise growth + feature selection wins |
-| Hard (10 iter) | Random Forest | **0.3285** | 0.705 | Boosting overfits when users are similar |
+| Setting | Iterations | Best Algorithm | EER | AUC-ROC | Key Discovery |
+|---|---|---|---|---|---|
+| Medium (8 iter) | 8 | LightGBM | 0.3285 | 0.721 | Feature selection (drop nav+temporal) |
+| Hard (10 iter) | 10 | Random Forest | 0.3285 | 0.705 | Insufficient budget to find breakthrough |
+| **Hard (50 iter)** | **47** | **LightGBM** | **0.3230** | **0.719** | **`is_unbalance=True` unlocks LGB** |
 
-> **Difficulty inversion:** When users are behaviorally similar (hard), boosted models overfit to the noisy dominant features (`scr_std`). Random Forest's bagging diversity generalises better in that regime.
+> **The `is_unbalance` breakthrough:** With only 10 iterations, the agent never tested LightGBM's built-in imbalance handling. At experiment 21 of 50, it discovered that `is_unbalance=True` — which re-weights samples to correct for the 4:1 genuine:impostor ratio — dropped EER from 0.329 → 0.3235 in a single step, then converged to **0.3230** after tree count optimisation.
 
 ---
 
@@ -244,35 +261,42 @@ Two full runs were conducted across different difficulty settings. The agent aut
 
 ---
 
-## Agent's Research Strategy (Both Runs)
+## Agent's Research Strategy
+
+The agent follows the same systematic phases across all runs, but with more iterations it reaches deeper discoveries:
 
 ### Phase 1 — Baseline
-Random Forest with default params, all 102 features. Establishes the EER floor to beat.
+Random Forest with default params, all 102 features. Establishes the EER floor.
 
 ### Phase 2 — Feature Ablation
-Tests which signal groups carry discriminative power. Consistent finding: **mouse + keystroke + derived is the sweet spot**; navigation and temporal features are too generic.
+Tests each signal group in isolation and combination. Consistent finding across all runs: **mouse alone (0.361) > keystroke alone (0.388)**, and navigation/temporal add marginal signal on hard difficulty.
 
 ### Phase 3 — Algorithm Comparison
-Pits XGBoost, LightGBM, and GradientBoost against RF. **Medium difficulty**: LightGBM wins. **Hard difficulty**: RF holds — boosting overfits when inter-user variance is low.
+Full sweep: RF > LightGBM > GradientBoost > XGBoost > SVM. Isolation Forest fails (EER ~0.51) — purely anomaly-based detection can't compete with supervised methods given the labelled data.
 
-### Phase 4 — Hyperparameter Tuning
-Focuses budget on the winning algorithm. On medium, `num_leaves=127` on LightGBM gives the largest single gain. On hard, no tuning beats the RF baseline — convergence plateau detected early.
+### Phase 4 — Imbalance Correction (discovered at 50 iterations)
+The 4:1 genuine:impostor ratio silently degrades all models. At experiment 21, `is_unbalance=True` in LightGBM breaks the plateau — the single largest single-experiment EER drop across all runs (−0.006).
+
+### Phase 5 — Deep Hyperparameter Search
+Systematic sweep of n_estimators (200–1000), num_leaves (15–63), depth (5–9), learning_rate (0.02–0.10), min_child_samples (3–10). Converged on **350 / 50 / 7 / 0.05 / 5** as the global optimum.
 
 ---
 
 ## Key Findings
 
-1. **Difficulty changes the winning algorithm.** LightGBM dominates when users are clearly separable; Random Forest is more robust when the population is behaviorally similar.
+1. **`is_unbalance=True` is the most impactful single parameter** (discovered only with 50+ iterations). LightGBM's built-in imbalance handling outperforms `class_weight="balanced"` in sklearn — the volumetric 4:1 ratio needs algorithm-native correction.
 
-2. **Scroll dynamics are the #1 feature across all runs** (`scr_std` ranks first). Scrolling rhythm is highly user-idiosyncratic and resistant to imitation.
+2. **More iterations = new discoveries.** The 10-iteration run concluded RF was best. The 50-iteration run overturned that — LightGBM with proper imbalance handling surpasses RF once given enough search budget.
 
-3. **Keystroke distribution shape > raw timing.** Entropy, kurtosis, and autocorrelation of intervals consistently outperform typing speed means.
+3. **Scroll dynamics are the #1 feature across all runs** (`scr_std` ranks first consistently). Scrolling rhythm is highly user-idiosyncratic — users maintain distinctive scroll cadences across sessions.
 
-4. **Class balancing (`class_weight="balanced"`) hurts.** The 4:1 genuine:impostor imbalance is volumetric, not difficulty-based — forcing balance degrades EER.
+4. **Keystroke distribution shape > raw timing.** Kurtosis and skewness of keystroke intervals (`ksi_kurt`, `ksi_skew`) outrank typing speed means. The *shape* of the timing distribution is more biometric than the centre.
 
-5. **Navigation and temporal features add noise.** Dropping them improves EER by ~0.020 on medium difficulty but has less effect on hard (where all features are marginal).
+5. **All feature groups needed on hard difficulty.** Unlike medium difficulty (where dropping navigation/temporal helped), on hard difficulty all 102 features contribute — even weak signals matter when users are similar.
 
-6. **EER floor ~0.33 at this scale.** With 50 users and 20 sessions, EER ~0.33 is the practical limit. Expect EER < 0.10 with 50+ sessions per user or per-user models.
+6. **Regularisation and subsampling hurt LightGBM here.** `reg_alpha`, `reg_lambda`, and `subsample` all degraded EER — the signal is sparse and regularisation suppresses it.
+
+7. **EER ~0.32 is the practical floor** with 50 users × 20 sessions and session-level aggregated features. Breaking below 0.20 requires per-user enrollment models or temporal sequence modeling (LSTM/Transformer).
 
 ---
 
